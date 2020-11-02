@@ -2,7 +2,9 @@
 title: "Candy Counting and the Crowd"
 author: "Stephen Kaluzny"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
-output: html_document
+output:
+  html_document:
+    theme: cerulean
 ---
 
 ```{r setup, include=FALSE}
@@ -10,6 +12,20 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ## The Challenge
+
+Guess the number of pieces of pieces of candy in the jar.
+This was a typically activity at the Seattle Office's Halloween Party.
+There you could handle the physical jar of candy.
+For this exercise, several photos of the jar were provided.
+
+There is an idea that the Wisdom of the Crowd would provide a good
+estimate of the count.
+The story goes that guesses for a pig's weight at a state fair were highly
+variable but the average of all the guesses was very close to the correct value.
+
+The exercise was made available to three groups, the Seattle office (TIBCO),
+my extended family (Family),
+and the Seattle office alumni group (StatSoftFul).
 
 ```{r load_packages, echo=FALSE}
 suppressPackageStartupMessages(library("here"))
@@ -21,32 +37,126 @@ suppressPackageStartupMessages(library("ggplot2"))
 
 ```{r read_data}
 guesses <- read.csv(here::here("data", "candyjar_guesses.csv"))
-true_count <- read.csv(here::here("data", "candyjar_count.csv"))
 ```
+There are `r nrow(guesses)` total observations (guesses),
+`r sum(guesses$Group == "TIBCO")` from TIBCO,
+`r sum(guesses$Group == "Family")` from my family,
+and `r sum(guesses$Group == "StatSoftFul")` from Seattle office alumni.
 
+Compute the true candy count based on the counts of the types of
+candy pieces:
 ```{r true_count}
+true_count <- read.csv(here::here("data", "candyjar_count.csv"))
 Count <- true_count[, "Count", drop=TRUE]
 names(Count) <- true_count[, "Type", drop=TRUE]
 Count <- c(Count, Total=sum(Count))
+Count
 ```
 
-The total number of pieces in the jar is
-`r (Ans <- Count["Total"])`.
+Save the total count as `Ans` for future computations.
+```{r save_ans}
+Ans <- Count["Total"]
+```
+
+The total number of pieces in the jar is `r Ans`.
 
 ## The Winners
 
-There were three groups playing this guessing game: Family, TIBCO (work) and
-StatSoftFul (work alumni).
+We will consider a winner for each of the three groups.
+To compute the winners, we first compute the error of each guess,
+the difference between each guess and the answer, taking the absolute value.
 
-To compute the winners, we first compute the difference between each guess
-and the answer, taking the absolute value.
-
-```{r compute_differance}
-guesses <- guesses %>% mutate(DiffAns = abs(Guess - Ans))
+```{r compute_error}
+guesses <- guesses %>% mutate(Error = abs(Guess - Ans))
 ```
 
 
+Winner has minimum `Error`:
 ```{r winner_by_group}
-guesses %>% group_by(Group) %>%
-  summarise(Winner=Person[which.min(DiffAns)], MinDiff = min(DiffAns))
+winners <- guesses %>% group_by(Group) %>%
+  summarise(Person=Person[which.min(Error)],
+    Guess=Guess[which.min(Error)], Error = min(Error), .groups="drop")
+winners %>% knitr::kable()
+```
+
+## Wisdom of the Crowd
+
+There is a theory that the average of all guesses for something like this
+will be a good estimate of the true value.
+We consider the average by Group as well as the overall average across all
+three groups.
+For the average we consider both the mean and the median.
+
+Compute averages and their errors, make a new dataset with all guesses.
+
+```{r average}
+group_mean <- guesses %>% group_by(Group) %>%
+  summarise(Guess=mean(Guess), n=n(), .groups="drop") %>%
+  mutate(Person="Mean", Error=abs(Guess - Ans))
+group_median <- guesses %>% group_by(Group) %>%
+  summarise(Guess=median(Guess), n=n(), .groups="drop") %>%
+  mutate(Person="Median", Error=abs(Guess - Ans)) %>%
+  ungroup()
+overall_mean <- guesses %>%
+  summarise(Group="All", Person="AllMean", Guess=mean(Guess), n=n(),
+    .groups="drop") %>%
+  mutate(Error=abs(Guess - Ans))
+overall_median <- guesses %>%
+  summarise(Group="All", Person="AllMedian",
+    Guess=median(Guess), n=n(), .groups="drop") %>%
+  mutate(Error=abs(Guess - Ans))
+crowd_est <- group_mean  %>% full_join(group_median,
+    by=c("Group", "Guess", "n", "Person", "Error")) %>%
+  full_join(overall_mean, by=c("Group", "Guess", "n", "Person", "Error")) %>%
+  full_join(overall_median, by=c("Group", "Guess", "n", "Person", "Error"))
+estimates <- group_mean %>% full_join(group_median,
+    by=c("Group", "Guess", "n", "Person", "Error")) %>%
+  full_join(overall_mean, by=c("Group", "Guess", "n", "Person", "Error")) %>%
+  full_join(overall_median, by=c("Group", "Guess", "n", "Person", "Error")) %>%
+  select(Group, Person, Guess, Error, n)
+estimates
+```
+
+Combine with the individual winners:
+
+```{r combine_estimates}
+estimates <- estimates %>% full_join(winners,
+    by=c("Group", "Person", "Guess", "Error")) %>%
+  rename(Estimate=Person, Value=Guess) %>%
+  arrange(Error)
+estimates %>% knitr::kable()
+```
+
+## Visualizations
+
+The distribution of all guesses
+```{r hist_all, fig.width=9, fig.height=7}
+guesses %>% ggplot(aes(x=Guess)) + geom_histogram(binwidth=10) +
+  geom_vline(xintercept=Ans, color="red", size=0.5) +
+  ggtitle("All Guess, Red Line Is the Answer")
+```
+
+The distribution of guesses by group:
+```{r hist_group, fig.width=9, fig.height=7}
+guesses %>% ggplot(aes(x=Guess)) + geom_histogram(binwidth=10) +
+  facet_grid(~ Group) +
+  geom_vline(xintercept=Ans, color="red", size=0.5)
+  ggtitle("Guesses by Group, Red Line Is the Answer")
+```
+
+The crowd estimates along with all the guesses:
+```{r estimates, fig.width=9, fig.height=7}
+guesses %>% ggplot(aes(x=Group, y=Guess)) + geom_point(shape=1) +
+  geom_hline(yintercept=Ans, color="red", size=0.15) +
+  geom_point(data=estimates, aes(x=Group, y=Value, color=Estimate),
+    size=3, shape=18) +
+  ggtitle("Crowd Estimates, Winners and All Guesses (open circles), Red Line Is the Answer")
+```
+
+## Appendix
+This is a reproducible document.
+All code and data are available at https://github.com/spkaluzny/crowd_wisdom.
+
+```{r sessionInfo}
+sessionInfo()
 ```
