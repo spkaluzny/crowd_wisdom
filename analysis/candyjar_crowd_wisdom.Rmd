@@ -140,7 +140,7 @@ The distribution of guesses by group:
 ```{r hist_group, fig.width=9, fig.height=7}
 guesses %>% ggplot(aes(x=Guess)) + geom_histogram(binwidth=10) +
   facet_grid(~ Group) +
-  geom_vline(xintercept=Ans, color="red", size=0.5)
+  geom_vline(xintercept=Ans, color="red", size=0.5) +
   ggtitle("Guesses by Group, Red Line Is the Answer")
 ```
 
