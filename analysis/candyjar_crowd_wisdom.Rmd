@@ -29,6 +29,7 @@ and the Seattle office alumni group (StatSoftFul).
 
 ```{r load_packages, echo=FALSE}
 suppressPackageStartupMessages(library("here"))
+suppressPackageStartupMessages(library("assertr"))
 suppressPackageStartupMessages(library("dplyr"))
 suppressPackageStartupMessages(library("ggplot2"))
 ```
@@ -38,6 +39,14 @@ suppressPackageStartupMessages(library("ggplot2"))
 ```{r read_data}
 guesses <- read.csv(here::here("data", "candyjar_guesses.csv"))
 ```
+
+Quick quality check on the data,
+should be only one observations per `Person`.
+
+```{r data_qc}
+guesses %>% count(Person) %>% verify(n == 1) %>% success_logical()
+```
+
 There are `r nrow(guesses)` total observations (guesses),
 `r sum(guesses$Group == "TIBCO")` from TIBCO,
 `r sum(guesses$Group == "Family")` from my family,
