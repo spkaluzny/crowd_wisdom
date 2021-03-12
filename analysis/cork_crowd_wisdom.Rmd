@@ -1,0 +1,117 @@
+---
+title: "Cork Counting and the Crowd"
+author: "Stephen Kaluzny"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    theme: cerulean
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## The Challenge
+
+Guess the number of corks in the plastic tub.
+This was a typically activity at the Seattle TIBCO Office's Halloween Party.
+There you could handle the physical jar of candy.
+For this exercise, several photos of the tub were provided.
+
+There is an idea that the Wisdom of the Crowd would provide a good
+estimate of the count.
+The story goes that guesses for a pig's weight at a state fair were highly
+variable but the average of all the guesses was very close to the correct value.
+
+The exercise was made available to
+my extended family (Family).
+
+```{r load_packages, echo=FALSE}
+suppressPackageStartupMessages(library("here"))
+suppressPackageStartupMessages(library("assertr"))
+suppressPackageStartupMessages(library("dplyr"))
+suppressPackageStartupMessages(library("ggplot2"))
+```
+
+## The Data
+
+```{r read_data}
+guesses <- read.csv(here::here("data", "cork_guesses.csv"))
+```
+
+Quick quality check on the data,
+should be only one observations per `Person`.
+
+```{r data_qc}
+guesses %>% count(Person) %>% verify(n == 1) %>% success_logical()
+```
+
+There are `r nrow(guesses)` total observations (guesses).
+
+The correct cork count is:
+```{r save_ans}
+(Ans <- 559)
+```
+
+## The Win
+
+To compute the winner, we first compute the error of each guess,
+the difference between each guess and the answer, taking the absolute value.
+
+```{r compute_error}
+guesses <- guesses %>% mutate(Error = abs(Guess - Ans))
+```
+
+Winner has minimum `Error`:
+```{r winner}_by_group}
+winners <- guesses %>%
+  summarise(Person=Person[which.min(Error)],
+    Guess=Guess[which.min(Error)], Error = min(Error))
+winners %>% knitr::kable()
+```
+
+## Wisdom of the Crowd
+
+There is a theory that the average of all guesses for something like this
+will be a good estimate of the true value.
+We consider the average by Group as well as the overall average across all
+three groups.
+For the average we consider both the mean and the median.
+
+Compute averages and their errors, make a new dataset with all guesses.
+
+```{r average}
+overall_mean <- guesses %>%
+  summarise(Group="Family", Person="Mean", Guess=mean(Guess), n=n()) %>%
+  mutate(Error=abs(Guess - Ans))
+overall_median <- guesses %>%
+  summarise(Group="Family", Person="Median", Guess=median(Guess), n=n()) %>%
+ mutate(Error=abs(Guess - Ans))
+```
+
+Combine with the individual winners:
+
+```{r combine_estimates}
+estimates <- estimates %>% full_join(winners,
+    by=c("Group", "Person", "Guess", "Error")) %>%
+  rename(Estimate=Person, Value=Guess) %>%
+  arrange(Error)
+estimates %>% knitr::kable()
+```
+
+## Visualizations
+
+The distribution of all guesses
+```{r hist_all, fig.width=9, fig.height=7}
+guesses %>% ggplot(aes(x=Guess)) + geom_histogram(binwidth=10) +
+  geom_vline(xintercept=Ans, color="red", size=0.5) +
+  ggtitle("All Guess, Red Line Is the Answer")
+```
+
+## Appendix
+This is a reproducible document.
+All code and data are available at https://github.com/spkaluzny/crowd_wisdom.
+
+```{r sessionInfo}
+sessionInfo()
+```
