@@ -97,15 +97,25 @@ estimates %>% knitr::kable()
 
 ## Visualizations
 
-The distribution of all guesses
+The distribution of all guesses.
 ```{r hist_all, fig.width=9, fig.height=7}
 estimates %>% mutate(Person=factor(Person, levels=Person)) %>%
   ggplot(aes(x=Person, y=Guess)) +
     stat_summary(fun="mean", geom="bar", width=0.3) +
     geom_hline(yintercept=Ans, color="red", size=0.5) +
     coord_flip() +
-    ggtitle("All Guess, Red Line Is the Answer")
+    ggtitle("All Guess, Red Line Is the Answer") +
+    theme_light()
 ```
+We see from the graph that most people underestimated the count,
+many were way too low.
+Only two estimates, `susank` and `laurak` where above the actual cork count.
+Since most of the estimates were too low, the crowd estimate based on the
+median was not very good.
+The estimate based on the mean did better
+because of the very large over estimate by `laurak` which pulled the mean
+closer to the true value.
+
 
 ## Appendix
 This is a reproducible document.
