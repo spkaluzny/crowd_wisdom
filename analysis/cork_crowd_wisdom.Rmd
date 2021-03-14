@@ -36,7 +36,7 @@ suppressPackageStartupMessages(library("ggplot2"))
 ## The Data
 
 ```{r read_data}
-guesses <- read.csv(here::here("data", "cork_guesses.csv"))
+guesses <- read.csv(here::here("data", "cork_guesses.csv")) %>% select(-Group)
 ```
 
 Quick quality check on the data,
@@ -53,7 +53,7 @@ The correct cork count is:
 (Ans <- 559)
 ```
 
-## The Win
+## The Winner
 
 To compute the winner, we first compute the error of each guess,
 the difference between each guess and the answer, taking the absolute value.
@@ -63,38 +63,34 @@ guesses <- guesses %>% mutate(Error = abs(Guess - Ans))
 ```
 
 Winner has minimum `Error`:
-```{r winner}_by_group}
+```{r winner}
 winners <- guesses %>%
   summarise(Person=Person[which.min(Error)],
     Guess=Guess[which.min(Error)], Error = min(Error))
-winners %>% knitr::kable()
+winners %>% knitr::kable(format="html", table.attr = "style='width:30%;'")
 ```
 
 ## Wisdom of the Crowd
 
 There is a theory that the average of all guesses for something like this
 will be a good estimate of the true value.
-We consider the average by Group as well as the overall average across all
-three groups.
 For the average we consider both the mean and the median.
 
 Compute averages and their errors, make a new dataset with all guesses.
 
 ```{r average}
 overall_mean <- guesses %>%
-  summarise(Group="Family", Person="Mean", Guess=mean(Guess), n=n()) %>%
+  summarise(Person="Mean", Guess=mean(Guess)) %>%
   mutate(Error=abs(Guess - Ans))
 overall_median <- guesses %>%
-  summarise(Group="Family", Person="Median", Guess=median(Guess), n=n()) %>%
+  summarise(Person="Median", Guess=median(Guess)) %>%
  mutate(Error=abs(Guess - Ans))
 ```
 
-Combine with the individual winners:
-
-```{r combine_estimates}
-estimates <- estimates %>% full_join(winners,
-    by=c("Group", "Person", "Guess", "Error")) %>%
-  rename(Estimate=Person, Value=Guess) %>%
+```{r estimates}
+estimates <- guesses %>%
+  full_join(overall_mean, by=c("Person", "Guess", "Error")) %>%
+  full_join(overall_median, by=c("Person", "Guess", "Error")) %>%
   arrange(Error)
 estimates %>% knitr::kable()
 ```
@@ -103,9 +99,12 @@ estimates %>% knitr::kable()
 
 The distribution of all guesses
 ```{r hist_all, fig.width=9, fig.height=7}
-guesses %>% ggplot(aes(x=Guess)) + geom_histogram(binwidth=10) +
-  geom_vline(xintercept=Ans, color="red", size=0.5) +
-  ggtitle("All Guess, Red Line Is the Answer")
+estimates %>% mutate(Person=factor(Person, levels=Person)) %>%
+  ggplot(aes(x=Person, y=Guess)) +
+    stat_summary(fun="mean", geom="bar", width=0.3) +
+    geom_hline(yintercept=Ans, color="red", size=0.5) +
+    coord_flip() +
+    ggtitle("All Guess, Red Line Is the Answer")
 ```
 
 ## Appendix
