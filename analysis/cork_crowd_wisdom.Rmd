@@ -92,21 +92,39 @@ estimates <- guesses %>%
   full_join(overall_mean, by=c("Person", "Guess", "Error")) %>%
   full_join(overall_median, by=c("Person", "Guess", "Error")) %>%
   arrange(Error)
-estimates %>% knitr::kable()
+estimates %>% knitr::kable(format="html", table.attr = "style='width:30%;'")
 ```
 
 ## Visualizations
 
+```{r meanmedianans}
+estimates$Group <- rep("Guess", nrow(estimates))
+estimates$Group[estimates$Person == "Mean"] <- "Mean"
+estimates$Group[estimates$Person == "Median"] <- "Median"
+estimates <- estimates %>%
+  rbind(data.frame(Person="Answer", Guess=Ans, Error=0, Group="Answer"))
+```
+
+```{r, fig.width=3}
+estimates %>%
+  ggplot(aes(x="Corks", y=Guess, color=Group)) +
+    geom_jitter(cex=2, height=0, width=0.10) +
+    xlab("")
+```
+
 The distribution of all guesses.
 ```{r hist_all, fig.width=9, fig.height=7}
-estimates %>% mutate(Person=factor(Person, levels=Person)) %>%
+estimates %>% filter(Person != "Answer") %>%
+  mutate(Person=factor(Person, levels=Person)) %>%
   ggplot(aes(x=Person, y=Guess)) +
     stat_summary(fun="mean", geom="bar", width=0.3) +
     geom_hline(yintercept=Ans, color="red", size=0.5) +
     coord_flip() +
-    ggtitle("All Guess, Red Line Is the Answer") +
+    ggtitle("All Guesses, Red Line Is the Answer",
+      subtitle="(ordered by error)") +
     theme_light()
 ```
+
 We see from the graph that most people underestimated the count,
 many were way too low.
 Only two estimates, `susank` and `laurak` where above the actual cork count.
